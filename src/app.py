@@ -1,6 +1,14 @@
-from flask import Flask, render_template, url_for, jsonify, request
+from flask import (
+    Flask,
+    render_template,
+    jsonify,
+    request,
+    Response,
+    stream_with_context,
+)  # Add Response, stream_with_context
 import os
 import sys
+import json  # Import json
 
 # import time # No longer needed for cache busting plot image
 import logging
@@ -27,7 +35,8 @@ except ImportError as e:
     # Define dummy function and class if import fails
     def train_save_get_data(*args, **kwargs):  # UPDATED dummy
         logging.error("Using dummy train_save_get_data due to import failure.")
-        return {"success": False, "message": "Dummy function used."}
+        # Yield an error result directly for the dummy function
+        yield {"type": "result", "success": False, "message": "Dummy function used."}
 
     class LinearRegressionModel(nn.Module):  # Dummy model
         def __init__(self, *args, **kwargs):
@@ -42,21 +51,16 @@ except ImportError as e:
 template_dir = os.path.join(project_root, "src", "templates")
 static_dir = os.path.join(project_root, "static")  # Keep static for CSS/JS if needed
 data_path = os.path.join(project_root, "data", "kc_house_data.csv")
-# plot_filename = "results.png" # No longer generating static plot
 model_filename = "linear_regression_model.pth"
 params_filename = "normalization_params.pt"
-
-# plot_save_path = os.path.join(static_dir, plot_filename) # No longer needed
 model_save_path = os.path.join(project_root, "models", model_filename)
 params_save_path = os.path.join(project_root, "models", params_filename)
-
-# Ensure directories exist
 os.makedirs(static_dir, exist_ok=True)
 os.makedirs(os.path.join(project_root, "models"), exist_ok=True)
-
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
+
 
 # --- Flask App Initialization ---
 app = Flask(
@@ -68,7 +72,6 @@ app = Flask(
 
 
 # --- Helper: Load Model and Params ---
-# ... (keep load_model_and_params as is) ...
 def load_model_and_params():
     """Loads the saved model state and normalization parameters."""
     if not os.path.exists(model_save_path) or not os.path.exists(params_save_path):
@@ -93,37 +96,56 @@ def load_model_and_params():
 def index():
     """Renders the main page."""
     logging.info("Request received for index page.")
-    model_exists = os.path.exists(model_save_path)
-    # No need to check for plot image anymore
-    return render_template("index.html", model_exists=model_exists)  # Remove plot_url
+    model_exists = os.path.exists(model_save_path) and os.path.exists(params_save_path)
+    return render_template("index.html", model_exists=model_exists)
 
 
 @app.route("/train", methods=["POST"])
 def train_model():
-    """Triggers the model training process and returns plot data."""
+    """Triggers the model training process and streams progress."""
     logging.info("Received request to train model.")
     if not os.path.isfile(data_path):
         logging.error(f"Data file not found at {data_path}")
+        # Return a single error JSON for file not found before streaming
         return jsonify(
-            {"success": False, "message": f"Server error: Data file not found."}
+            {
+                "type": "result",
+                "success": False,
+                "message": f"Server error: Data file not found.",
+            }
         ), 500
 
-    # Call the updated function
-    result_data = train_save_get_data(data_path, model_save_path, params_save_path)
+    def generate_progress():
+        """Generator function to yield progress updates."""
+        try:
+            # Iterate through the generator from linear_regression.py
+            for update in train_save_get_data(
+                data_path, model_save_path, params_save_path
+            ):
+                # Send each update as a JSON string followed by a newline
+                yield json.dumps(update) + "\n"
+                # Optional: Add a small delay if needed for smoother frontend updates
+                # time.sleep(0.02)
+        except Exception as e:
+            logging.error(
+                f"Error during training stream generation: {e}", exc_info=True
+            )
+            # Yield a final error message if the generator itself fails unexpectedly
+            error_message = {
+                "type": "result",
+                "success": False,
+                "message": f"Streaming error: {e}",
+            }
+            yield json.dumps(error_message) + "\n"
 
-    if result_data and result_data["success"]:
-        logging.info("Training successful. Sending plot data.")
-        # Return the whole dictionary which includes success status and data
-        return jsonify(result_data)
-    else:
-        logging.error(
-            f"Model training failed. Reason: {result_data.get('message', 'Unknown')}"
-        )
-        return jsonify(result_data), 500  # Send error details back
+    # Return a streaming response
+    # Use application/x-ndjson (newline delimited JSON)
+    return Response(
+        stream_with_context(generate_progress()), mimetype="application/x-ndjson"
+    )
 
 
 @app.route("/predict", methods=["POST"])
-# ... (keep predict_price route as is) ...
 def predict_price():
     """Predicts price based on input square footage."""
     logging.info("Received request to predict price.")
@@ -187,4 +209,5 @@ def predict_price():
 # --- Main Execution ---
 if __name__ == "__main__":
     logging.info("Starting Flask development server...")
+    # Use 0.0.0.0 to be accessible within Docker/network if needed
     app.run(debug=True, host="0.0.0.0", port=5000)
