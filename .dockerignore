@@ -1,0 +1,18 @@
+Dockerfile
+.dockerignore
+README.md
+LICENSE
+.git/
+.gitignore
+.vscode/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.env
+# Add any local data files you don't want in the image if they aren't needed
+# data/kc_house_data.csv # Uncomment if data isn't needed in the final image
+# Add any local model files if they are generated outside the build process
+# models/*.pth
+# models/*.pt

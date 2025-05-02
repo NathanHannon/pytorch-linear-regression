@@ -1,0 +1,5 @@
+flask
+torch
+pandas
+gunicorn
+matplotlib # Needed if train_save_get_data still generates plot data internally
