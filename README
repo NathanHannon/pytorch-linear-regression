@@ -1,0 +1,2 @@
+# pytorch-linear-regression
+A demo web app for [Pytorch](https://github.com/pytorch/pytorch) linear regression, to predict housing prices based on square feet.
