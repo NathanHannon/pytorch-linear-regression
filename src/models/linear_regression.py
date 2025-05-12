@@ -8,12 +8,17 @@ import logging
 
 
 class LinearRegressionModel(nn.Module):
-    def __init__(self, input_dim, output_dim):
+    def __init__(self, input_dim, hidden_dim, output_dim):  # Added hidden_dim
         super(LinearRegressionModel, self).__init__()
-        self.linear = nn.Linear(input_dim, output_dim)
+        self.linear1 = nn.Linear(input_dim, hidden_dim)  # New hidden layer
+        self.relu = nn.ReLU()  # Activation function
+        self.linear2 = nn.Linear(hidden_dim, output_dim)  # Output layer
 
     def forward(self, x):
-        return self.linear(x)
+        out = self.linear1(x)
+        out = self.relu(out)
+        out = self.linear2(out)
+        return out
 
 
 def train_save_get_data(data_path, model_save_path, params_save_path):
@@ -54,14 +59,18 @@ def train_save_get_data(data_path, model_save_path, params_save_path):
         logging.info("Initializing model, loss, and optimizer...")
         yield {"type": "progress", "message": "Initializing model..."}
         input_dim = 1
+        hidden_dim = 10  # New hidden dimension
         output_dim = 1
-        model = LinearRegressionModel(input_dim, output_dim)
+        # hidden_dim is defined above (e.g., hidden_dim = 10)
+        model = LinearRegressionModel(
+            input_dim, hidden_dim, output_dim
+        )  # Pass hidden_dim here
         learning_rate = 0.01
         criterion = nn.MSELoss()
         optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
 
         logging.info("Starting training loop...")
-        epochs = 1000
+        epochs = 2500
         yield {
             "type": "progress",
             "message": "Starting training...",

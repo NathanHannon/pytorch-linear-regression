@@ -82,7 +82,7 @@ def load_model_and_params():
         norm_params = torch.load(params_save_path)
 
         # Instantiate model and load state dict
-        model = LinearRegressionModel(input_dim=1, output_dim=1)
+        model = LinearRegressionModel(input_dim=1, hidden_dim=10, output_dim=1)
         model.load_state_dict(torch.load(model_save_path))
         model.eval()  # Set to evaluation mode
         return model, norm_params
